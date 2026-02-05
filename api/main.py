@@ -123,21 +123,28 @@ class handler(BaseHTTPRequestHandler):
         update_dict = json.loads(post_data.decode('utf-8'))
         
         async def process_update():
-            update = Update.model_validate(update_dict, context={"bot": bot})
-            await dp.feed_update(bot, update)
+            # Важно: создаем бота внутри, чтобы не было конфликтов сессий
+            async with bot.context():
+                update = Update.model_validate(update_dict, context={"bot": bot})
+                await dp.feed_update(bot, update)
 
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
         try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
             loop.run_until_complete(process_update())
-        finally:
             loop.close()
-
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b'ok')
+            
+            self.send_response(200)
+            self.send_header('Content-type', 'text/plain')
+            self.end_headers()
+            self.wfile.write(b'ok')
+        except Exception as e:
+            print(f"Error: {e}")
+            self.send_response(500)
+            self.end_headers()
 
     def do_GET(self):
         self.send_response(200)
+        self.send_header('Content-type', 'text/plain')
         self.end_headers()
         self.wfile.write(b'Apex Bot is Running!')
