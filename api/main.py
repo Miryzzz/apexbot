@@ -25,17 +25,29 @@ MAP_TRANSLATION = {
 }
 
 
+
+MAP_IMAGES = {
+    "World's Edge": "https://apexlegendsstatus.com/assets/maps/Worlds_Edge.png",
+    "Storm Point": "https://apexlegendsstatus.com/assets/maps/Storm_Point.png",
+    "Broken Moon": "https://apexlegendsstatus.com/assets/maps/Broken_Moon.png",
+    "Olympus": "https://apexlegendsstatus.com/assets/maps/Olympus.png",
+    "Kings Canyon": "https://apexlegendsstatus.com/assets/maps/Kings_Canyon.png",
+    "District": "https://apexlegendsstatus.com/assets/maps/District.png",
+    "E-District": "https://apexlegendsstatus.com/assets/maps/District.png"
+}
+
 # --- 2. МЕНЮ ---
 def get_main_menu():
     kb = [
         [KeyboardButton(text="📊 Статистика"), KeyboardButton(text="🗺 Карты")],
-        [KeyboardButton(text="📰 Новости"), KeyboardButton(text="🏆 Рейтинг (RP)")],
-        [KeyboardButton(text="🛒 Магазин"), KeyboardButton(text="👤 Помощь")],
+        [KeyboardButton(text="📊 Мета Легенд"), KeyboardButton(text="🏆 Рейтинг (RP)")],
+        [KeyboardButton(text="📰 Новости"), KeyboardButton(text="🛒 Магазин")],
+        [KeyboardButton(text="👤 Помощь")]
     ]
     return ReplyKeyboardMarkup(
-        keyboard=kb,
-        resize_keyboard=True,
-        input_field_placeholder="Жду никнейм или команду...",
+        keyboard=kb, 
+        resize_keyboard=True, 
+        input_field_placeholder="Выберите раздел..."
     )
 
 
@@ -60,56 +72,58 @@ async def show_maps(message: types.Message):
     url = f"https://api.mozambiquehe.re/maprotation?auth={APEX_API_KEY}&version=2"
     async with aiohttp.ClientSession() as session:
         try:
-            async with session.get(url, timeout=5) as response:
+            async with session.get(url) as response:
                 data = await response.json()
-                current = data["battle_royale"]["current"]
-                ranked = data["ranked"]["current"]
+                current = data['battle_royale']['current']
+                map_name = current['map']
+                
+                p_ru = MAP_TRANSLATION.get(map_name, map_name)
+                img_url = MAP_IMAGES.get(map_name, "https://apexlegendsstatus.com/assets/maps/Worlds_Edge.png")
 
-                cur_map = MAP_TRANSLATION.get(current["map"], current["map"])
-                rank_map = MAP_TRANSLATION.get(ranked["map"], ranked["map"])
-
-                text = (
-                    f"🗺 **Паблик:** {cur_map}\n⏳ Смена через: `{current['remainingTimer']}`\n\n"
-                    f"🏆 **Рейтинг:** {rank_map}\n⏳ Смена через: `{ranked['remainingTimer']}`"
+                caption = (
+                    f"🗺 **ТЕКУЩАЯ КАРТА: {p_ru}**\n\n"
+                    f"⏱ Осталось: `{current['remainingTimer']}`\n"
+                    f"🔜 Следующая: _{MAP_TRANSLATION.get(data['battle_royale']['next']['map'])}_"
                 )
-                await message.answer(text, parse_mode="Markdown")
+                await message.answer_photo(photo=img_url, caption=caption, parse_mode="Markdown")
         except:
-            await message.answer("⚠️ Ошибка получения карт.")
+            await message.answer("⚠️ Ошибка связи со спутником.")
 
 
 @dp.message(F.text == "🏆 Рейтинг (RP)")
 async def show_predator(message: types.Message):
     url = f"https://api.mozambiquehe.re/predator?auth={APEX_API_KEY}"
+    pred_img = "https://apexlegendsstatus.com/assets/ranks/apex_predator.png"
+    
     async with aiohttp.ClientSession() as session:
         try:
-            async with session.get(url, timeout=10) as response:
-                # Читаем текст ответа, чтобы понять, что там внутри
-                raw_data = await response.text()
-                
-                try:
-                    data = json.loads(raw_data)
-                except json.JSONDecodeError:
-                    await message.answer("⚠️ API прислало странный ответ. Возможно, ведутся технические работы.")
-                    return
-
-                # Проверяем, нет ли ошибки в самом ответе
-                if "Error" in data:
-                    await message.answer(f"❌ Ошибка API: {data.get('Error')}")
-                    return
-                
+            async with session.get(url) as response:
+                data = await response.json()
                 pc = data.get('RP', {}).get('PC', {})
-                pc_val = pc.get('val', "N/A")
-                masters = pc.get('totalMastersAndPreds', "N/A")
                 
-                text = (
-                    "🎖 **Статус Predator (PC):**\n\n"
-                    f"🔴 **Порог:** `{pc_val}` RP\n"
-                    f"🟣 **Мастеров:** `{masters}`\n\n"
-                    "_Данные от Mozambiquehe.re_"
+                caption = (
+                    "🎖 **ЛИМИТЫ ХИЩНИКОВ (PC):**\n\n"
+                    f"🔴 **Порог Predator:** `{pc.get('val', 'N/A')}` RP\n"
+                    f"🟣 **Мастеров в очереди:** `{pc.get('totalMastersAndPreds', 'N/A')}`\n\n"
+                    "Чтобы стать Хищником, нужно войти в топ-750 игроков платформы."
                 )
-                await message.answer(text, parse_mode="Markdown")
-        except Exception as e:
-            await message.answer(f"⚠️ Ошибка связи: {str(e)}")
+                await message.answer_photo(photo=pred_img, caption=caption, parse_mode="Markdown")
+        except:
+            await message.answer("⚠️ Ошибка API рейтинга.")
+            
+            
+@dp.message(F.text == "📊 Мета Легенд")
+async def show_meta(message: types.Message):
+    meta_img = "https://images.wallpapersden.com/image/download/apex-legends-all-characters_bWptZ2mUmZqaraWkpJRmbmdlrWZlbWU.jpg"
+    
+    caption = (
+        "📊 **АКТУАЛЬНАЯ МЕТА (Сезон 23):**\n\n"
+        "🔥 **S-Тир:** Lifeline, Newcastle, Revenant\n"
+        "⚡️ **A-Тир:** Octane, Pathfinder, Horizon\n"
+        "🛡 **B-Тир:** Bangalore, Wattson, Conduit\n\n"
+        "📉 *Выбор игроков основывается на пикрейте в рейтинговых матчах.*"
+    )
+    await message.answer_photo(photo=meta_img, caption=caption, parse_mode="Markdown")
 
 
 @dp.message(F.text == "📰 Новости")
@@ -119,14 +133,18 @@ async def show_news(message: types.Message):
         try:
             async with session.get(url) as response:
                 data = await response.json()
-                msg = "📰 **Свежие новости:**\n\n"
-                for item in data[:3]:
-                    msg += f"🔸 [{item['title']}]({item['link']})\n"
-                await message.answer(
-                    msg, parse_mode="Markdown", disable_web_page_preview=True
+                latest = data[0] # Берем самую свежую новость
+                
+                img = latest.get('img', "https://top-mmorpg.ru/uploads/posts/2023-02/apex-legends-reveal-trailer.jpg")
+                caption = (
+                    f"🔥 **ПОСЛЕДНИЕ НОВОСТИ:**\n\n"
+                    f"📌 **{latest['title']}**\n\n"
+                    f"📖 {latest.get('short_desc', '')[:150]}...\n\n"
+                    f"🔗 [Читать полностью]({latest['link']})"
                 )
+                await message.answer_photo(photo=img, caption=caption, parse_mode="Markdown")
         except:
-            await message.answer("📭 Новостей пока нет.")
+            await message.answer("⚠️ Не удалось загрузить новости.")
 
 
 @dp.message(F.text == "🛒 Магазин")
