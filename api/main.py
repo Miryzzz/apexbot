@@ -143,75 +143,75 @@ async def show_help(message: types.Message):
     )
 
 
+# --- 1. ОБРАБОТКА КНОПКИ В МЕНЮ ---
 @dp.message(F.text == "📊 Статистика")
-async def ask_stats(message: types.Message):
+async def stats_help(message: types.Message):
     await message.answer(
-        "🔍 **Напиши никнейм игрока** прямо в этот чат (например: `ImperialHal`).\n\n_Поиск работает только для PC (Origin/Steam)._"
+        "Чтобы узнать статистику, введите команду и ник игрока через пробел.\n\n"
+        "Пример: `/stats ImperialHal`",
+        parse_mode="Markdown"
     )
 
+# --- 2. КОМАНДА /stats ---
+@dp.message(Command("stats"))
+async def get_player_stats(message: types.Message):
+    args = message.text.split(maxsplit=1)
+    
+    if len(args) < 2:
+        await message.answer("❌ Введите ник! Пример: `/stats ImperialHal`")
+        return
 
-# --- ЛОВУШКА ДЛЯ НИКНЕЙМОВ (ЭТО САМОЕ ВАЖНОЕ) ---
-@dp.message()
-async def handle_any_text(message: types.Message):
-    # Эта функция срабатывает на любой текст, который не подошел под кнопки выше
-    nickname = message.text
-
-    msg = await message.answer(f"🔎 Ищу досье на легенду **{nickname}**...")
+    nickname = args[1]
+    msg_wait = await message.answer(f"🔎 Сканирую базу данных для **{nickname}**...")
 
     url = f"https://api.mozambiquehe.re/bridge?auth={APEX_API_KEY}&player={nickname}&platform=PC"
+    
     async with aiohttp.ClientSession() as session:
         try:
             async with session.get(url, timeout=10) as response:
-                if response.status != 200:
-                    await msg.edit_text(
-                        "❌ **Игрок не найден.**\nПроверь никнейм или попробуй другой. (Только PC)"
-                    )
-                    return
-
                 data = await response.json()
 
-                # Если вернулась ошибка внутри JSON
-                if "Error" in data:
-                    await msg.edit_text("❌ Игрок не найден или скрыл статистику.")
+                if "Error" in data or response.status != 200:
+                    await msg_wait.edit_text("❌ Игрок не найден. Убедись, что ник верный и это PC версия.")
                     return
 
-                # Парсим данные
+                # Собираем данные
                 glob = data.get("global", {})
-                real_time = data.get("realtime", {})
                 rank = glob.get("rank", {})
-
+                real_time = data.get("realtime", {})
+                
                 name = glob.get("name", nickname)
                 level = glob.get("level", 0)
                 rank_name = rank.get("rankName", "Unranked")
-                rank_div = rank.get("rankDiv", 0)
+                rank_div = rank.get("rankDiv", "")
                 rank_score = rank.get("rankScore", 0)
-                status = (
-                    "🟢 В лобби/игре"
-                    if real_time.get("isOnline") == 1
-                    else "🔴 Оффлайн"
-                )
+                
+                # Ссылка на иконку ранга и фон легенды
+                rank_icon = rank.get("rankImg")
+                selected_legend = data.get("legends", {}).get("selected", {})
+                legend_name = selected_legend.get("LegendName", "Unknown")
+                
+                status = "🟢 В игре" if real_time.get("isOnline") == 1 else "🔴 Оффлайн"
 
-                selected_legend = (
-                    data.get("legends", {})
-                    .get("selected", {})
-                    .get("LegendName", "Unknown")
-                )
-
-                # Формируем ответ
-                info_text = (
-                    f"👤 **Профиль:** `{name}`\n"
-                    f"🆙 **Уровень:** {level}\n"
-                    f"{status}\n\n"
+                caption = (
+                    f"👤 **Легенда:** `{name}`\n"
+                    f"🆙 **Уровень:** {level} | {status}\n\n"
                     f"🏆 **Ранг:** {rank_name} {rank_div}\n"
-                    f"💎 **RP:** {rank_score}\n"
-                    f"🎭 **Активная легенда:** {selected_legend}"
+                    f"💎 **Очки (RP):** {rank_score}\n"
+                    f"🎭 **Активный герой:** {legend_name}\n\n"
+                    f"📈 _Статистика обновлена из API Синдиката_"
                 )
 
-                await msg.edit_text(info_text, parse_mode="Markdown")
+                # Удаляем временное сообщение и отправляем красивое фото с текстом
+                await msg_wait.delete()
+                
+                if rank_icon:
+                    await message.answer_photo(photo=rank_icon, caption=caption, parse_mode="Markdown")
+                else:
+                    await message.answer(caption, parse_mode="Markdown")
 
         except Exception as e:
-            print(e)
-            await msg.edit_text("⚠️ **Ошибка сервера API.** Попробуй позже.")
+            await msg_wait.edit_text(f"⚠️ Ошибка API. Возможно, сервер перегружен.")
 
 
 # --- VERCEL HANDLER ---
