@@ -82,18 +82,30 @@ async def show_predator(message: types.Message):
     url = f"https://api.mozambiquehe.re/predator?auth={APEX_API_KEY}"
     async with aiohttp.ClientSession() as session:
         try:
-            async with session.get(url) as response:
+            async with session.get(url, timeout=10) as response:
+                if response.status == 403:
+                    await message.answer("🔑 Ошибка: API ключ не подходит. Проверь его в коде!")
+                    return
+                elif response.status == 429:
+                    await message.answer("⏳ Слишком много запросов! Подожди пару секунд.")
+                    return
+                
                 data = await response.json()
-                pc_val = data.get("RP", {}).get("PC", {}).get("val", 0)
-                masters = (
-                    data.get("RP", {}).get("PC", {}).get("totalMastersAndPreds", 0)
+                
+                # Извлекаем данные для PC
+                pc = data.get('RP', {}).get('PC', {})
+                pc_val = pc.get('val', "Неизвестно")
+                masters = pc.get('totalMastersAndPreds', "Неизвестно")
+                
+                text = (
+                    "🎖 **Текущие пороги рангов (PC):**\n\n"
+                    f"🔴 **Apex Predator:** `{pc_val}` RP\n"
+                    f"🟣 **Мастеров и Хищников всего:** `{masters}`\n\n"
+                    " Чтобы попасть в топ-750, тебе нужно перебить это число RP!"
                 )
-                await message.answer(
-                    f"🔴 **Predator (PC):** `{pc_val}` RP\n🟣 **Всего Мастеров:** `{masters}`",
-                    parse_mode="Markdown",
-                )
-        except:
-            await message.answer("⚠️ Данные недоступны.")
+                await message.answer(text, parse_mode="Markdown")
+        except Exception as e:
+            await message.answer(f"⚠️ Ошибка связи с API: {str(e)[:50]}")
 
 
 @dp.message(F.text == "📰 Новости")
