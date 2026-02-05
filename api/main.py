@@ -15,9 +15,12 @@ dp = Dispatcher()
 
 # --- СЛОВАРИ ---
 MAP_TRANSLATION = {
-    "World's Edge": "🌋 Край Света", "Storm Point": "⛈ Место Бури",
-    "Broken Moon": "🌒 Расколотая Луна", "Olympus": "☁️ Олимп",
-    "Kings Canyon": "🦖 Каньон Кингс", "E-District": "🌃 Квартал Электро"
+    "World's Edge": "🌋 Край Света", 
+    "Storm Point": "⛈ Место Бури",
+    "Broken Moon": "🌒 Расколотая Луна", 
+    "Olympus": "☁️ Олимп",
+    "Kings Canyon": "🦖 Каньон Кингс", 
+    "E-District": "🌃 Квартал Электро"
 }
 
 MAP_IMAGES = {
@@ -67,7 +70,7 @@ async def show_maps(message: types.Message):
                 except:
                     await message.answer(caption, parse_mode="Markdown")
         except:
-            await message.answer("⚠️ Ошибка API. Подождите 10 секунд.")
+            await message.answer("⚠️ Ошибка API карт. Подождите 10 секунд.")
 
 @dp.message(F.text == "🏆 Рейтинг (RP)", Command("predator"))
 async def show_pred(message: types.Message):
@@ -99,7 +102,7 @@ async def show_meta(message: types.Message):
 
 @dp.message(F.text == "📊 Статистика")
 async def stats_info(message: types.Message):
-    await message.answer("🔎 Введи: `/stat Ник` (например: `/stat ImperialHal`)")
+    await message.answer("🔎 Введи: `/stat Ник` (например: `/stat ImperialHal`)", parse_mode="Markdown")
 
 @dp.message(Command("stat", "stats"))
 async def get_stat(message: types.Message):
@@ -125,6 +128,14 @@ async def get_stat(message: types.Message):
         except:
             await message.answer("⚠️ Ошибка поиска.")
 
+@dp.message(F.text == "🛒 Магазин", Command("store"))
+async def show_store(message: types.Message):
+    await message.answer("🛒 **Магазин Apex**\nАссортимент обновляется каждый вторник. Проверьте раздел 'Магазин' прямо в игре!", parse_mode="Markdown")
+
+@dp.message(F.text == "📰 Новости", Command("news"))
+async def show_news_btn(message: types.Message):
+    await message.answer("📰 Новости временно доступны только по прямой ссылке: [EA News](https://www.ea.com/games/apex-legends/news)", parse_mode="Markdown")
+
 # --- VERCEL ---
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
@@ -139,8 +150,4 @@ class handler(BaseHTTPRequestHandler):
         loop.close()
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b'ok')
-    def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b'Online')
+        self.wfile.write
