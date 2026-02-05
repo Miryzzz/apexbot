@@ -61,55 +61,18 @@ async def cmd_start(message: types.Message):
 
 
 # --- КНОПКИ МЕНЮ ---
-
-# --- КАРТЫ (НАДЕЖНАЯ ВЕРСИЯ) ---
-@dp.message(F.text == "🗺 Карты")
-@dp.message(Command("map"))
-async def show_maps(message: types.Message):
-    url = f"https://api.mozambiquehe.re/maprotation?auth={APEX_API_KEY}&version=2"
-    async with aiohttp.ClientSession() as session:
-        try:
-            async with session.get(url, timeout=15) as response:
-                raw_text = await response.text()
-                
-                if response.status == 403:
-                    await message.answer("❌ Ошибка: API Ключ неверный или заблокирован.")
-                    return
-                if "Slow down" in raw_text:
-                    await message.answer("⏳ Слишком много запросов! Подождите 10-15 сек.")
-                    return
-
-                data = json.loads(raw_text)
-                br = data.get('battle_royale', {}).get('current', {})
-                rnk = data.get('ranked', {}).get('current', {})
-
-                m_name = rnk.get('map', 'Unknown')
-                img = MAP_IMAGES.get(m_name, "https://apexlegendsstatus.com/assets/maps/Worlds_Edge.png")
-                
-                caption = (
-                    f"🎮 **Обычные:** {MAP_TRANSLATION.get(br.get('map'), br.get('map'))}\n"
-                    f"⏱ Осталось: `{br.get('remainingTimer')}`\n\n"
-                    f"🏆 **Рейтинг:** {MAP_TRANSLATION.get(m_name, m_name)}\n"
-                    f"⏱ До смены: `{rnk.get('remainingTimer')}`"
-                )
-                await message.answer_photo(photo=img, caption=caption, parse_mode="Markdown")
-
-        except Exception as e:
-            await message.answer(f"⚠️ Ошибка API: `{str(e)[:50]}`")
-
-# --- РЕЙТИНГ (НАДЕЖНАЯ ВЕРСИЯ) ---
-@dp.message(F.text == "🏆 Рейтинг (RP)")
-@dp.message(Command("predator"))
+@dp.message(F.text == "🏆 Рейтинг (RP)", Command("predator"))
 async def show_predator(message: types.Message):
     url = f"https://api.mozambiquehe.re/predator?auth={APEX_API_KEY}"
+    # Используем более стабильную ссылку на иконку
+    pred_img = "https://apexlegendsstatus.com/assets/ranks/apex_predator.png"
+    
     async with aiohttp.ClientSession() as session:
         try:
             async with session.get(url, timeout=15) as response:
                 raw_text = await response.text()
-                
                 if "Slow down" in raw_text:
-                    await message.answer("⏳ Лимит запросов! Подожди немного.")
-                    return
+                    return await message.answer("⏳ Лимит запросов! Подожди 10 сек.")
                 
                 data = json.loads(raw_text)
                 pc = data.get('RP', {}).get('PC', {})
@@ -119,13 +82,48 @@ async def show_predator(message: types.Message):
                     f"🔴 **Порог Predator:** `{pc.get('val', 'N/A')}` RP\n"
                     f"🟣 **Мастеров и Хищников:** `{pc.get('totalMastersAndPreds', 'N/A')}`"
                 )
-                await message.answer_photo(
-                    photo="https://apexlegendsstatus.com/assets/ranks/apex_predator.png", 
-                    caption=caption, 
-                    parse_mode="Markdown"
-                )
+                
+                try:
+                    # Пробуем отправить с фото
+                    await message.answer_photo(photo=pred_img, caption=caption, parse_mode="Markdown")
+                except:
+                    # Если Telegram ругается на тип файла, шлем просто текст
+                    await message.answer(caption, parse_mode="Markdown")
+                    
         except Exception as e:
-            await message.answer(f"⚠️ Ошибка рейтинга: `{str(e)[:50]}`")
+            await message.answer(f"⚠️ Ошибка API: `{str(e)[:50]}`")
+
+@dp.message(F.text == "🗺 Карты", Command("map"))
+async def show_maps(message: types.Message):
+    url = f"https://api.mozambiquehe.re/maprotation?auth={APEX_API_KEY}&version=2"
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.get(url, timeout=15) as response:
+                raw_text = await response.text()
+                if "Slow down" in raw_text:
+                    return await message.answer("⏳ Лимит! Подожди немного.")
+
+                data = json.loads(raw_text)
+                br = data.get('battle_royale', {}).get('current', {})
+                rnk = data.get('ranked', {}).get('current', {})
+                
+                m_name = rnk.get('map', 'Unknown')
+                img = MAP_IMAGES.get(m_name, "https://apexlegendsstatus.com/assets/maps/Worlds_Edge.png")
+                
+                caption = (
+                    f"🎮 **Обычные:** {MAP_TRANSLATION.get(br.get('map'), br.get('map'))}\n"
+                    f"⏱ Осталось: `{br.get('remainingTimer')}`\n\n"
+                    f"🏆 **Рейтинг:** {MAP_TRANSLATION.get(m_name, m_name)}\n"
+                    f"⏱ До смены: `{rnk.get('remainingTimer')}`"
+                )
+                
+                try:
+                    await message.answer_photo(photo=img, caption=caption, parse_mode="Markdown")
+                except:
+                    await message.answer(caption, parse_mode="Markdown")
+
+        except Exception as e:
+            await message.answer(f"⚠️ Ошибка: `{str(e)[:50]}`")
             
             
 @dp.message(F.text == "📊 Мета Легенд")
