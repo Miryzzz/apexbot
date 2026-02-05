@@ -39,7 +39,6 @@ def get_main_menu():
     kb = [
         [KeyboardButton(text="📊 Статистика"), KeyboardButton(text="🗺 Карты")],
         [KeyboardButton(text="📊 Мета Легенд"), KeyboardButton(text="🏆 Рейтинг (RP)")],
-        [KeyboardButton(text="📰 Новости"), KeyboardButton(text="🛒 Магазин")],
     ]
     return ReplyKeyboardMarkup(
         keyboard=kb, 
@@ -62,70 +61,57 @@ async def cmd_start(message: types.Message):
 
 # --- КНОПКИ МЕНЮ ---
 
-# --- КАРТЫ (НАДЕЖНАЯ ВЕРСИЯ) ---
-@dp.message(F.text == "🗺 Карты")
-@dp.message(Command("map"))
+@dp.message(F.text == "🏆 Рейтинг (RP)", Command("predator"))
+async def show_pred(message: types.Message):
+    url = f"https://api.mozambiquehe.re/predator?auth={APEX_API_KEY}"
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.get(url, timeout=15) as response:
+                data = await response.json()
+                pc = data.get('RP', {}).get('PC', {})
+                caption = (
+                    "🎖 **Лимиты Predator (PC):**\n\n"
+                    f"🔴 Порог: `{pc.get('val', 'N/A')}` RP\n"
+                    f"🟣 Мастеров/Хищников: `{pc.get('totalMastersAndPreds', 'N/A')}`"
+                )
+                
+                img = "https://apexlegendsstatus.com/assets/ranks/apex_predator.png"
+                try:
+                    # Пробуем отправить с картинкой
+                    await message.answer_photo(photo=img, caption=caption, parse_mode="Markdown")
+                except Exception:
+                    # Если Telegram ругается на тип файла (wrong type), шлем просто текст
+                    await message.answer(caption, parse_mode="Markdown")
+        except:
+            await message.answer("⚠️ Не удалось загрузить данные рейтинга.")
+
+@dp.message(F.text == "🗺 Карты", Command("map"))
 async def show_maps(message: types.Message):
     url = f"https://api.mozambiquehe.re/maprotation?auth={APEX_API_KEY}&version=2"
     async with aiohttp.ClientSession() as session:
         try:
             async with session.get(url, timeout=15) as response:
-                raw_text = await response.text()
+                res_text = await response.text()
+                data = json.loads(res_text)
                 
-                if response.status == 403:
-                    await message.answer("❌ Ошибка: API Ключ неверный или заблокирован.")
-                    return
-                if "Slow down" in raw_text:
-                    await message.answer("⏳ Слишком много запросов! Подождите 10-15 сек.")
-                    return
-
-                data = json.loads(raw_text)
                 br = data.get('battle_royale', {}).get('current', {})
                 rnk = data.get('ranked', {}).get('current', {})
-
                 m_name = rnk.get('map', 'Unknown')
-                img = MAP_IMAGES.get(m_name, "https://apexlegendsstatus.com/assets/maps/Worlds_Edge.png")
                 
                 caption = (
-                    f"🎮 **Обычные:** {MAP_TRANSLATION.get(br.get('map'), br.get('map'))}\n"
-                    f"⏱ Осталось: `{br.get('remainingTimer')}`\n\n"
+                    f"🎮 **Паблик:** {MAP_TRANSLATION.get(br.get('map'), br.get('map'))}\n"
+                    f"⏱ Смена через: `{br.get('remainingTimer')}`\n\n"
                     f"🏆 **Рейтинг:** {MAP_TRANSLATION.get(m_name, m_name)}\n"
                     f"⏱ До смены: `{rnk.get('remainingTimer')}`"
                 )
-                await message.answer_photo(photo=img, caption=caption, parse_mode="Markdown")
-
-        except Exception as e:
-            await message.answer(f"⚠️ Ошибка API: `{str(e)[:50]}`")
-
-# --- РЕЙТИНГ (НАДЕЖНАЯ ВЕРСИЯ) ---
-@dp.message(F.text == "🏆 Рейтинг (RP)")
-@dp.message(Command("predator"))
-async def show_predator(message: types.Message):
-    url = f"https://api.mozambiquehe.re/predator?auth={APEX_API_KEY}"
-    async with aiohttp.ClientSession() as session:
-        try:
-            async with session.get(url, timeout=15) as response:
-                raw_text = await response.text()
                 
-                if "Slow down" in raw_text:
-                    await message.answer("⏳ Лимит запросов! Подожди немного.")
-                    return
-                
-                data = json.loads(raw_text)
-                pc = data.get('RP', {}).get('PC', {})
-                
-                caption = (
-                    "🎖 **ЛИМИТЫ ХИЩНИКОВ (PC):**\n\n"
-                    f"🔴 **Порог Predator:** `{pc.get('val', 'N/A')}` RP\n"
-                    f"🟣 **Мастеров и Хищников:** `{pc.get('totalMastersAndPreds', 'N/A')}`"
-                )
-                await message.answer_photo(
-                    photo="https://apexlegendsstatus.com/assets/ranks/apex_predator.png", 
-                    caption=caption, 
-                    parse_mode="Markdown"
-                )
-        except Exception as e:
-            await message.answer(f"⚠️ Ошибка рейтинга: `{str(e)[:50]}`")
+                img = MAP_IMAGES.get(m_name, "https://apexlegendsstatus.com/assets/maps/Worlds_Edge.png")
+                try:
+                    await message.answer_photo(photo=img, caption=caption, parse_mode="Markdown")
+                except Exception:
+                    await message.answer(caption, parse_mode="Markdown")
+        except:
+            await message.answer("⚠️ Ошибка API карт. Попробуйте снова.")
             
             
 @dp.message(F.text == "📊 Мета Легенд")
@@ -142,59 +128,6 @@ async def show_meta(message: types.Message):
     )
     await message.answer_photo(photo=meta_img, caption=caption, parse_mode="Markdown")
 
-
-@dp.message(F.text == "📰 Новости")
-@dp.message(Command("news"))
-async def show_news(message: types.Message):
-    url = f"https://api.mozambiquehe.re/news?auth={APEX_API_KEY}"
-    async with aiohttp.ClientSession() as session:
-        try:
-            async with session.get(url, timeout=10) as response:
-                if response.status != 200:
-                    await message.answer("📡 Сервер новостей временно недоступен.")
-                    return
-                
-                data = await response.json()
-                
-                # Проверяем, что пришел список и он не пустой
-                if not isinstance(data, list) or len(data) == 0:
-                    await message.answer("📭 Свежих новостей пока нет. Заходите позже!")
-                    return
-
-                # Берем самую свежую новость (первую в списке)
-                latest = data[0]
-                title = latest.get('title', 'Заголовок отсутствует')
-                link = latest.get('link', 'https://www.ea.com/games/apex-legends/news')
-                img = latest.get('img', "https://top-mmorpg.ru/uploads/posts/2023-02/apex-legends-reveal-trailer.jpg")
-                desc = latest.get('short_desc', 'Нажмите "Читать", чтобы узнать подробности.')
-
-                # Ограничиваем длину описания, чтобы сообщение не было слишком длинным
-                if len(desc) > 200:
-                    desc = desc[:197] + "..."
-
-                caption = (
-                    f"🔥 **ПОСЛЕДНИЕ НОВОСТИ:**\n\n"
-                    f"📌 **{title}**\n\n"
-                    f"📝 {desc}\n\n"
-                    f"🔗 [Читать полностью]({link})"
-                )
-
-                await message.answer_photo(
-                    photo=img, 
-                    caption=caption, 
-                    parse_mode="Markdown"
-                )
-        except Exception as e:
-            print(f"News Error: {e}")
-            await message.answer("⚠️ Не удалось загрузить новости. Попробуйте использовать команду `/news` еще раз.")
-
-
-@dp.message(F.text == "🛒 Магазин")
-@dp.message(Command("store"))
-async def show_store(message: types.Message):
-    await message.answer(
-        "🛒 Полный ассортимент доступен только в игре.\nПроверяй ротацию бандлов каждый вторник!"
-    )
 
 # --- 1. ОБРАБОТКА КНОПКИ И КОМАНД-ПОДСКАЗОК ---
 @dp.message(F.text == "📊 Статистика")
