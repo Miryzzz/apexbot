@@ -42,7 +42,6 @@ def get_main_menu():
         [KeyboardButton(text="📊 Статистика"), KeyboardButton(text="🗺 Карты")],
         [KeyboardButton(text="📊 Мета Легенд"), KeyboardButton(text="🏆 Рейтинг (RP)")],
         [KeyboardButton(text="📰 Новости"), KeyboardButton(text="🛒 Магазин")],
-        [KeyboardButton(text="👤 Помощь")]
     ]
     return ReplyKeyboardMarkup(
         keyboard=kb, 
@@ -72,22 +71,40 @@ async def show_maps(message: types.Message):
     url = f"https://api.mozambiquehe.re/maprotation?auth={APEX_API_KEY}&version=2"
     async with aiohttp.ClientSession() as session:
         try:
-            async with session.get(url) as response:
+            async with session.get(url, timeout=10) as response:
                 data = await response.json()
-                current = data['battle_royale']['current']
-                map_name = current['map']
                 
-                p_ru = MAP_TRANSLATION.get(map_name, map_name)
-                img_url = MAP_IMAGES.get(map_name, "https://apexlegendsstatus.com/assets/maps/Worlds_Edge.png")
+                # 1. ДАННЫЕ ПАБЛИКА (БЫСТРАЯ РОТАЦИЯ)
+                pub = data['battle_royale']['current']
+                pub_map = pub['map']
+                pub_img = MAP_IMAGES.get(pub_map, "https://apexlegendsstatus.com/assets/maps/Worlds_Edge.png")
+                pub_ru = MAP_TRANSLATION.get(pub_map, pub_map)
+                
+                # 2. ДАННЫЕ РЕЙТИНГА (СУТОЧНАЯ РОТАЦИЯ)
+                rnk = data['ranked']['current']
+                rnk_map = rnk['map']
+                rnk_img = MAP_IMAGES.get(rnk_map, "https://apexlegendsstatus.com/assets/maps/Worlds_Edge.png")
+                rnk_ru = MAP_TRANSLATION.get(rnk_map, rnk_map)
 
+                # Формируем общий текст
                 caption = (
-                    f"🗺 **ТЕКУЩАЯ КАРТА: {p_ru}**\n\n"
-                    f"⏱ Осталось: `{current['remainingTimer']}`\n"
-                    f"🔜 Следующая: _{MAP_TRANSLATION.get(data['battle_royale']['next']['map'])}_"
+                    "🎮 **ОБЫЧНЫЕ МАТЧИ (Pubs):**\n"
+                    f"📍 Сейчас: **{pub_ru}**\n"
+                    f"⏱ Осталось: `{pub['remainingTimer']}`\n"
+                    f"🔜 След.: _{MAP_TRANSLATION.get(data['battle_royale']['next']['map'])}_\n\n"
+                    "--- --- --- --- ---\n\n"
+                    "🏆 **РЕЙТИНГОВЫЕ МАТЧИ (Ranked):**\n"
+                    f"📍 Сейчас: **{rnk_ru}**\n"
+                    f"⏱ До смены: `{rnk['remainingTimer']}`\n"
                 )
-                await message.answer_photo(photo=img_url, caption=caption, parse_mode="Markdown")
-        except:
-            await message.answer("⚠️ Ошибка связи со спутником.")
+
+                await message.answer_photo(
+                    photo=rnk_img, 
+                    caption=caption, 
+                    parse_mode="Markdown"
+                )
+        except Exception as e:
+            await message.answer("⚠️ Не удалось получить актуальную ротацию. Проверьте позже.")
 
 
 @dp.message(F.text == "🏆 Рейтинг (RP)")
@@ -97,24 +114,39 @@ async def show_predator(message: types.Message):
     
     async with aiohttp.ClientSession() as session:
         try:
-            async with session.get(url) as response:
+            async with session.get(url, timeout=10) as response:
+                if response.status != 200:
+                    await message.answer(f"❌ Ошибка сервера API (Код: {response.status}). Попробуйте позже.")
+                    return
+                
                 data = await response.json()
-                pc = data.get('RP', {}).get('PC', {})
+                
+                # Проверяем наличие данных для PC
+                rp_data = data.get('RP', {})
+                pc = rp_data.get('PC', {})
+                
+                if not pc:
+                    await message.answer("⚠️ Данные для PC временно недоступны в API. Попробуйте через 5 минут.")
+                    return
+                
+                val = pc.get('val', 'N/A')
+                total = pc.get('totalMastersAndPreds', 'N/A')
                 
                 caption = (
                     "🎖 **ЛИМИТЫ ХИЩНИКОВ (PC):**\n\n"
-                    f"🔴 **Порог Predator:** `{pc.get('val', 'N/A')}` RP\n"
-                    f"🟣 **Мастеров в очереди:** `{pc.get('totalMastersAndPreds', 'N/A')}`\n\n"
-                    "Чтобы стать Хищником, нужно войти в топ-750 игроков платформы."
+                    f"🔴 **Порог Predator:** `{val}` RP\n"
+                    f"🟣 **Мастеров и Хищников всего:** `{total}`\n\n"
+                    " Чтобы попасть в топ-750, нужно набрать больше RP, чем у последнего Хищника."
                 )
                 await message.answer_photo(photo=pred_img, caption=caption, parse_mode="Markdown")
-        except:
-            await message.answer("⚠️ Ошибка API рейтинга.")
+        except Exception as e:
+            # Если случилась ошибка, бот напишет её часть для диагностики
+            await message.answer(f"⚠️ Ошибка связи: {str(e)[:30]}...")
             
             
 @dp.message(F.text == "📊 Мета Легенд")
 async def show_meta(message: types.Message):
-    meta_img = "https://images.wallpapersden.com/image/download/apex-legends-all-characters_bWptZ2mUmZqaraWkpJRmbmdlrWZlbWU.jpg"
+    meta_img = "https://images.wallpapersden.com/image/download/apex-legends-bloodhound-loba-and-caustic-skin_bmZuamWUmZqaraWkpJRmbmdlrWZlbWU.jpg"
     
     caption = (
         "📊 **АКТУАЛЬНАЯ МЕТА (Сезон 23):**\n\n"
@@ -154,11 +186,6 @@ async def show_store(message: types.Message):
     )
 
 
-@dp.message(F.text == "👤 Помощь")
-async def show_help(message: types.Message):
-    await message.answer(
-        "💡 **Как проверить статистику?**\nПросто отправь мне никнейм игрока (PC/Origin) в чат, и я найду его профиль."
-    )
 
 
 # --- 1. ОБРАБОТКА КНОПКИ В МЕНЮ ---
