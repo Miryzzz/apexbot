@@ -138,16 +138,34 @@ async def show_news_btn(message: types.Message):
 
 # --- VERCEL ---
 class handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        # Это сработает, если ты просто откроешь ссылку в браузере
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html; charset=utf-8')
+        self.end_headers()
+        self.wfile.write("Бот запущен и готов к работе (Apex Syndicate)".encode('utf-8'))
+
     def do_POST(self):
+        # Это для обновлений от Telegram
         content_length = int(self.headers['Content-Length'])
         post_data = self.rfile.read(content_length)
+        
         async def process():
-            update = Update.model_validate(json.loads(post_data.decode('utf-8')), context={"bot": bot})
-            await dp.feed_update(bot, update)
+            try:
+                # Декодируем входящие данные
+                update_dict = json.loads(post_data.decode('utf-8'))
+                update = Update.model_validate(update_dict, context={"bot": bot})
+                await dp.feed_update(bot, update)
+            except Exception as e:
+                print(f"Ошибка при обработке: {e}")
+
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        loop.run_until_complete(process())
-        loop.close()
+        try:
+            loop.run_until_complete(process())
+        finally:
+            loop.close()
+
         self.send_response(200)
         self.end_headers()
-        self.wfile.write
+        self.wfile.write(b'ok')
