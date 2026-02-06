@@ -3,7 +3,7 @@
   "rewrites": [
     {
       "source": "/api/main",
-      "destination": "main.py"
+      "destination": "/api/main.py"
     }
   ]
 }
