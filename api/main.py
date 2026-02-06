@@ -65,39 +65,26 @@ async def cmd_start(message: types.Message):
 @dp.message(Command("predator"))
 async def show_pred(message: types.Message):
     url = f"https://api.mozambiquehe.re/predator?auth={APEX_API_KEY}"
+    
+    wait_msg = await message.answer("⏳ Проверяем RP...")
+
     async with aiohttp.ClientSession() as session:
         try:
             async with session.get(url, timeout=15) as response:
                 if response.status != 200:
-                    await message.answer(
-                        f"📡 Сервер API ответил ошибкой (Код: {response.status})."
-                    )
+                    await wait_msg.edit_text(f"📡 Ошибка API: {response.status}")
                     return
 
                 res_text = await response.text()
+                data = json.loads(res_text)
 
-                if "Slow down" in res_text or "Too many requests" in res_text:
-                    await message.answer(
-                        "⏳ **Слишком много запросов!** Подождите 10-15 секунд."
-                    )
-                    return
-
-                try:
-                    data = json.loads(res_text)
-                except json.JSONDecodeError:
-                    await message.answer(
-                        "⚠️ Не удалось прочитать данные от сервера (ошибка JSON)."
-                    )
-                    return
+                # Проверка на ошибки внутри JSON
+                if "Error" in data:
+                     await wait_msg.edit_text("⚠️ Ошибка данных от API.")
+                     return
 
                 rp_data = data.get("RP", {})
                 pc = rp_data.get("PC", {})
-
-                if not pc:
-                    await message.answer(
-                        "❌ Данные о рангах временно отсутствуют в базе API."
-                    )
-                    return
 
                 val = pc.get("val", "N/A")
                 total = pc.get("totalMastersAndPreds", "N/A")
@@ -106,38 +93,44 @@ async def show_pred(message: types.Message):
                     "🎖 **ЛИМИТЫ ХИЩНИКОВ (PC):**\n\n"
                     f"🔴 **Порог Predator:** `{val}` RP\n"
                     f"🟣 **Мастеров и Хищников:** `{total}`\n\n"
-                    "Данные обновляются раз в несколько минут."
+                    "ℹ️ *Данные обновляются раз в несколько минут.*"
                 )
 
                 img = "https://apexlegendsstatus.com/assets/ranks/apex_predator.png"
+                
+                await wait_msg.delete()
+                
                 try:
-                    await message.answer_photo(
-                        photo=img, caption=caption, parse_mode="Markdown"
-                    )
+                    await message.answer_photo(photo=img, caption=caption, parse_mode="Markdown")
                 except Exception:
                     await message.answer(caption, parse_mode="Markdown")
 
-        except asyncio.TimeoutError:
-            await message.answer(
-                "⏳ Время ожидания истекло. Сервер API слишком долго не отвечал."
-            )
         except Exception as e:
-            await message.answer(f"⚠️ Ошибка связи: `{str(e)[:50]}`")
+            await wait_msg.edit_text(f"⚠️ Ошибка: `{e}`")
 
 
 @dp.message(F.text == "🗺 Карты")
 @dp.message(Command("map"))
 async def show_maps(message: types.Message):
     url = f"https://api.mozambiquehe.re/maprotation?auth={APEX_API_KEY}&version=2"
+    
+    # Отправляем сообщение "Загрузка...", так как картинки могут грузиться пару секунд
+    wait_msg = await message.answer("⏳ Получаю данные о картах...")
+
     async with aiohttp.ClientSession() as session:
         try:
             async with session.get(url, timeout=10) as response:
                 data = await response.json()
+                
                 br = data.get("battle_royale", {}).get("current", {})
                 rnk = data.get("ranked", {}).get("current", {})
 
                 pub_map = br.get("map", "Unknown")
                 rank_map = rnk.get("map", "Unknown")
+
+                # --- ЛОГИКА ВЫБОРА КАРТИНКИ ---
+
+                map_image = MAP_IMAGES.get(rank_map, DEFAULT_MAP_IMG)
 
                 text = (
                     "🗺 **ТЕКУЩАЯ РОТАЦИЯ**\n\n"
@@ -149,9 +142,19 @@ async def show_maps(message: types.Message):
                     f"📍 Карта: **{MAP_TRANSLATION.get(rank_map, rank_map)}**\n"
                     f"⏱ До смены: `{rnk.get('remainingTimer')}`"
                 )
-                await message.answer(text, parse_mode="Markdown")
-        except:
-            await message.answer("⚠️ Ошибка API. Попробуйте чуть позже.")
+
+                # Удаляем сообщение о загрузке
+                await wait_msg.delete()
+
+                # Пробуем отправить фото
+                try:
+                    await message.answer_photo(photo=map_image, caption=text, parse_mode="Markdown")
+                except Exception:
+                    # Если ссылка на картинку битая, отправляем просто текст
+                    await message.answer(text, parse_mode="Markdown")
+
+        except Exception as e:
+            await wait_msg.edit_text(f"⚠️ Ошибка API: {e}")
 
 
 @dp.message(F.text == "📊 Мета Легенд")
