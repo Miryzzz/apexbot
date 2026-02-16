@@ -35,8 +35,6 @@ MAP_IMAGES = {
 DEFAULT_MAP_IMG = "https://images.wallpapersden.com/image/download/apex-legends-all-characters_bWptZ2mUmZqaraWkpJRmbmdlrWZlbWU.jpg"
 
 # --- 2. МЕНЮ ---
-
-
 def get_main_menu():
     kb = [
         [KeyboardButton(text="📊 Статистика"), KeyboardButton(text="🗺 Карты")],
@@ -48,8 +46,6 @@ def get_main_menu():
 
 
 # --- 3. ФУНКЦИИ ---
-
-
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
     await message.answer(
@@ -114,7 +110,6 @@ async def show_pred(message: types.Message):
 async def show_maps(message: types.Message):
     url = f"https://api.mozambiquehe.re/maprotation?auth={APEX_API_KEY}&version=2"
     
-    # Отправляем сообщение "Загрузка...", так как картинки могут грузиться пару секунд
     wait_msg = await message.answer("⏳ Получаю данные о картах...")
 
     async with aiohttp.ClientSession() as session:
@@ -129,7 +124,6 @@ async def show_maps(message: types.Message):
                 rank_map = rnk.get("map", "Unknown")
 
                 # --- ЛОГИКА ВЫБОРА КАРТИНКИ ---
-
                 map_image = MAP_IMAGES.get(rank_map, DEFAULT_MAP_IMG)
 
                 text = (
@@ -143,14 +137,11 @@ async def show_maps(message: types.Message):
                     f"⏱ До смены: `{rnk.get('remainingTimer')}`"
                 )
 
-                # Удаляем сообщение о загрузке
                 await wait_msg.delete()
 
-                # Пробуем отправить фото
                 try:
                     await message.answer_photo(photo=map_image, caption=text, parse_mode="Markdown")
                 except Exception:
-                    # Если ссылка на картинку битая, отправляем просто текст
                     await message.answer(text, parse_mode="Markdown")
 
         except Exception as e:
@@ -160,16 +151,46 @@ async def show_maps(message: types.Message):
 @dp.message(F.text == "📊 Мета Легенд")
 @dp.message(Command("meta"))
 async def show_meta(message: types.Message):
-    meta_img = "https://images.wallpapersden.com/image/download/apex-legends-bloodhound-loba-and-caustic-skin_bmZuamWUmZqaraWkpJRmbmdlrWZlbWU.jpg"
+    url = f"https://api.mozambiquehe.re/stats?auth={APEX_API_KEY}"
+    
+    msg_wait = await message.answer("📊 Собираю данные о популярности легенд...")
+    
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.get(url, timeout=15) as response:
+                if response.status != 200:
+                    await msg_wait.edit_text("📡 Ошибка API при получении меты.")
+                    return
 
-    caption = (
-        "📊 **АКТУАЛЬНАЯ МЕТА:**\n\n"
-        "🔥 **S-Тир:** Lifeline, Newcastle, Revenant\n"
-        "⚡️ **A-Тир:** Octane, Pathfinder, Horizon\n"
-        "🛡 **B-Тир:** Bangalore, Wattson, Conduit\n\n"
-        "📉 *Выбор игроков основывается на пикрейте в рейтинговых матчах.*"
-    )
-    await message.answer_photo(photo=meta_img, caption=caption, parse_mode="Markdown")
+                data = await response.json()
+                
+                # Собираем данные о пикрейте
+                # API возвращает словарь, где ключи - имена легенд
+                legends_stats = []
+                for legend_name, stats in data.items():
+                    # Нам нужен относительный пикрейт (какой % игроков выбирает героя)
+                    pick_rate = stats.get("relative_percentage", 0)
+                    legends_stats.append((legend_name, pick_rate))
+
+                # Сортируем легенд: от самых популярных к менее популярным
+                legends_stats.sort(key=lambda x: x[1], reverse=True)
+
+                # Формируем красивый список (Топ-10)
+                text = "📊 **АКТУАЛЬНАЯ МЕТА (Pick Rate):**\n\n"
+                icons = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
+                
+                for i, (name, rate) in enumerate(legends_stats[:10]):
+                    text += f"{icons[i]} **{name}**: `{rate}%` выбора\n"
+
+                text += "\n📈 *Данные основаны на глобальной статистике всех игроков.*"
+
+                meta_img = "https://images.wallpapersden.com/image/download/apex-legends-all-characters_bWptZ2mUmZqaraWkpJRmbmdlrWZlbWU.jpg"
+                
+                await msg_wait.delete()
+                await message.answer_photo(photo=meta_img, caption=text, parse_mode="Markdown")
+
+        except Exception as e:
+            await msg_wait.edit_text(f"⚠️ Не удалось загрузить мету: `{str(e)[:40]}`")
 
 
 # --- 1. ОБРАБОТКА КНОПКИ И КОМАНД-ПОДСКАЗОК ---
