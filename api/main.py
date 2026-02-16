@@ -6,7 +6,7 @@ from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.types import Update, ReplyKeyboardMarkup, KeyboardButton
 from http.server import BaseHTTPRequestHandler
-
+import cloudscraper
 from bs4 import BeautifulSoup
 
 # --- 1. НАСТРОЙКИ ---
@@ -181,30 +181,48 @@ async def show_maps(message: types.Message):
 
 
 @dp.message(F.text == "📊 Мета Легенд")
-@dp.message(Command("meta"))
 async def show_meta(message: types.Message):
-    msg_wait = await message.answer("🔍 Парсю данные с Tracker.gg... подождите.")
+    msg_wait = await message.answer("🔄 Парсим Tracker.gg (обходим защиту)...")
     
-    meta_list = await parse_tracker_meta()
-    
-    if not meta_list:
-        await msg_wait.edit_text("❌ Не удалось спарсить данные с сайта. Возможно, защита Cloudflare заблокировала запрос.")
-        return
+    try:
+        # Создаем скрепер
+        scraper = cloudscraper.create_scraper(
+            browser={
+                'browser': 'chrome',
+                'platform': 'windows',
+                'desktop': True
+            }
+        )
+        
+        # Делаем запрос
+        url = "https://apex.tracker.gg/apex/insights"
+        response = scraper.get(url)
+        
+        if response.status_code != 200:
+            await msg_wait.edit_text(f"❌ Ошибка доступа: {response.status_code}")
+            return
 
-    text = "📊 **АКТУАЛЬНЫЙ ПИК-РЕЙТ (с Tracker.gg):**\n\n"
-    icons = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
-    
-    for i, line in enumerate(meta_list):
-        text += f"{icons[i]} {line}\n"
-    
-    text += "\n🔗 [Источник: Tracker.gg](https://apex.tracker.gg/apex/insights)"
-    
-    await msg_wait.edit_text(text, parse_mode="Markdown", disable_web_page_preview=True)
+        soup = BeautifulSoup(response.text, "html.parser")
+        
+        # Ищем легенд. На Tracker.gg они обычно в блоках .insight-bar
+        legends = []
+        # Мы ищем названия и проценты
+        items = soup.find_all("div", class_="insight-bar")
+        
+        for item in items[:10]:
+            name = item.find("div", class_="name").text.strip()
+            rate = item.find("div", class_="value").text.strip()
+            legends.append(f"**{name}** — `{rate}`")
 
-@dp.message(Command("start"))
-async def cmd_start(message: types.Message):
-    await message.answer("Бот готов к работе!", reply_markup=get_main_menu())
+        if not legends:
+            await msg_wait.edit_text("⚠️ Сайт изменил структуру, не могу найти данные.")
+            return
 
+        res_text = "📊 **МЕТА С TRACKER.GG:**\n\n" + "\n".join(legends)
+        await msg_wait.edit_text(res_text, parse_mode="Markdown")
+
+    except Exception as e:
+        await msg_wait.edit_text(f"⚠️ Ошибка: `{str(e)[:50]}`")
 
 # --- 1. ОБРАБОТКА КНОПКИ И КОМАНД-ПОДСКАЗОК ---
 @dp.message(F.text == "📊 Статистика")
