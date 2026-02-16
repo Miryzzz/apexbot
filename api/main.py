@@ -149,48 +149,35 @@ async def show_maps(message: types.Message):
 
 
 @dp.message(F.text == "📊 Мета Легенд")
-@dp.message(Command("meta"))
 async def show_meta(message: types.Message):
     url = f"https://api.mozambiquehe.re/stats?auth={APEX_API_KEY}"
     
-    msg_wait = await message.answer("📊 Собираю данные о популярности легенд...")
+    msg_wait = await message.answer("📊 Загружаю актуальную мету...")
     
     async with aiohttp.ClientSession() as session:
         try:
-            async with session.get(url, timeout=15) as response:
-                if response.status != 200:
-                    await msg_wait.edit_text("📡 Ошибка API при получении меты.")
-                    return
-
+            async with session.get(url, timeout=10) as response:
                 data = await response.json()
                 
-                # Собираем данные о пикрейте
-                # API возвращает словарь, где ключи - имена легенд
-                legends_stats = []
-                for legend_name, stats in data.items():
-                    # Нам нужен относительный пикрейт (какой % игроков выбирает героя)
-                    pick_rate = stats.get("relative_percentage", 0)
-                    legends_stats.append((legend_name, pick_rate))
+                pick_stats = []
+                for name, stats in data.items():
+                    pick_stats.append({
+                        "name": name,
+                        "rate": stats.get("relative_percentage", 0)
+                    })
 
-                # Сортируем легенд: от самых популярных к менее популярным
-                legends_stats.sort(key=lambda x: x[1], reverse=True)
+                pick_stats.sort(key=lambda x: x["rate"], reverse=True)
 
-                # Формируем красивый список (Топ-10)
-                text = "📊 **АКТУАЛЬНАЯ МЕТА (Pick Rate):**\n\n"
-                icons = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
+                text = "📊 **ТОП-10 ПОПУЛЯРНЫХ ЛЕГЕНД:**\n\n"
+                for i, legend in enumerate(pick_stats[:10], 1):
+                    emoji = "🔥" if i == 1 else "🔹"
+                    text += f"{emoji} {i}. **{legend['name']}** — `{legend['rate']}%` \n"
+
+                text += "\n📈 *Данные обновляются в реальном времени.*"
                 
-                for i, (name, rate) in enumerate(legends_stats[:10]):
-                    text += f"{icons[i]} **{name}**: `{rate}%` выбора\n"
-
-                text += "\n📈 *Данные основаны на глобальной статистике всех игроков.*"
-
-                meta_img = "https://images.wallpapersden.com/image/download/apex-legends-all-characters_bWptZ2mUmZqaraWkpJRmbmdlrWZlbWU.jpg"
-                
-                await msg_wait.delete()
-                await message.answer_photo(photo=meta_img, caption=text, parse_mode="Markdown")
-
-        except Exception as e:
-            await msg_wait.edit_text(f"⚠️ Не удалось загрузить мету: `{str(e)[:40]}`")
+                await msg_wait.edit_text(text, parse_mode="Markdown")
+        except:
+            await msg_wait.edit_text("⚠️ Не удалось получить данные от API.")
 
 
 # --- 1. ОБРАБОТКА КНОПКИ И КОМАНД-ПОДСКАЗОК ---
